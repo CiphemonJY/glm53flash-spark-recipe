@@ -1,31 +1,33 @@
-# cluster_nodes.yaml - GLM-5.3-Flash fleet map (adapted from user recipe)
-# REALITY NOTES vs original example:
-#  - This engine (sglang glm-5.3-flash image) uses --nnodes/--node-rank/
-#    --dist-init-addr CLI args, NOT this YAML; file kept as authoritative
-#    cluster MAP for operators and future vLLM>=new-API runs.
-#  - Model is 320B-total/A18B FP8 (~330GB). Weight physics FORCE full-width
-#    sharding: every serving instance needs ALL FOUR nodes (85GB/node).
-#    A "3-node mesh + solo decode node" cannot hold this model on GB10
-#    (128GB unified - 15% headroom). Topology therefore = TP=4 classic now;
-#    PD-disagg (prefill x / decode y widths) revisits only if instance can
-#    still shard across >=4 nodes total.
+# cluster_nodes.yaml - cluster MAP template for a GLM-5.3-Flash TP=4 serve.
+# The engine does NOT read this file: the sglang image takes --nnodes /
+# --node-rank / --dist-init-addr on the CLI (see variant_a_ip.sh, which takes
+# HEAD_IP / WORKER_IPS from env). Keep this as the operator's authoritative
+# map of YOUR cluster; the IPs below are placeholders.
+#
+# PHYSICS NOTE: FP8 weights are ~330 GB. On 4x DGX Spark GB10 (128 GB unified
+# memory each, ~85 GB usable per rank after headroom) every serving instance
+# needs ALL FOUR nodes - a "3-node mesh + solo decode node" cannot hold the
+# model. Topology = classic TP=4. PD-disaggregation only makes sense if the
+# instance still shards across >= 4 nodes total.
 cluster:
-  head_node:
-    ip: "192.168.88.11"        # dgx-primary (spark-1) ds4 head today
+  head_node:                     # rank 0: dist-init endpoint + API server
+    ip: "10.0.0.11"              # EXAMPLE - replace with your fabric IP
     port: 22
-  worker_nodes:
-    - ip: "192.168.88.12"      # dgx-secondary (spark-2)
+  worker_nodes:                  # ranks 1-3, started BEFORE the head
+    - ip: "10.0.0.12"
       port: 22
-    - ip: "192.168.88.13"      # dgx-3
+    - ip: "10.0.0.13"
       port: 22
-    - ip: "192.168.88.14"      # dgx-4 (downloaded source-of-truth weights)
+    - ip: "10.0.0.14"
       port: 22
 
 scheduling:
-  enable_chunked_prefill: true          # supported in sglang by default path
-  max_num_seqs: 1024                    # ambition; sglang launches dynamic,
-                                        # set explicitly during tuning pass
+  enable_chunked_prefill: true
+  max_num_seqs: 1024             # ambition only: the hybrid-KDA mamba state
+                                 # capped real admissions much lower on the
+                                 # reference cluster (see README cautions)
+
 fabric:
-  mtu: 9000                             # already active on enp1s0f1np1
-  ring_buffers: pending_swap_window     # ethtool -G rx4096 tx4096 after ds4 stop
-  sysctl_buffers: APPLIED_20260727      # /etc/sysctl.d/99-glm-net.conf all nodes
+  mtu: 9000                      # jumbo frames on the fabric interfaces
+  ring_buffers: swap_window_only # ethtool -G pauses the queue: stop-window only
+  sysctl_buffers: tune_network_SAFE.sh   # safe beside a live serve

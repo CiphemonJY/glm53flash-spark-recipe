@@ -1,8 +1,10 @@
 #!/bin/bash
-# bench_glm.sh v2 - honest usage-token bench: seq xN median + concurrency ladder.
-# usage: bash bench_glm.sh              -> full battery
-MID=${MODEL_ID:-deepseek-v4-flash-dspark}
-URL=http://127.0.0.1:8888
+# bench_glm.sh - honest usage-token bench: sequential median + concurrency ladder.
+# usage: bash bench_glm.sh                        -> full battery, local serve
+#        BENCH_URL=http://head:8888 bash bench_glm.sh
+#        MODEL_ID=my-alias bash bench_glm.sh      (must match --served-model-name)
+URL=${BENCH_URL:-http://127.0.0.1:8888}
+MID=${MODEL_ID:-glm-5.3-flash}
 python3 -u - "$URL" "$MID" <<'PY'
 import json, sys, time, threading, urllib.request
 
@@ -32,7 +34,6 @@ for i in range(5):
         print(f"run{i+1}: FAIL {type(e).__name__} {str(e)[:60]}")
 if rates:
     print("MEDIAN-SEQ-TOKPS: %.1f" % sorted(rates)[len(rates)//2])
-print("(ds4 ours-baseline 27.1)")
 
 for n in (8, 16, 32, 64):
     res = []
@@ -50,5 +51,4 @@ for n in (8, 16, 32, 64):
     mpersum = (sum(per) / len(per)) if per else 0
     print(f"x{n}: AGG={agg:.0f}tok/s MEAN-PERSTREAM={mpersum:.1f} "
           f"fails={len(res)-len(oks)} wall={wall:.0f}s")
-print("(ds4 agg-ref ~135-150 @its roofline)")
 PY

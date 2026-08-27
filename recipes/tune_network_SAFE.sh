@@ -1,10 +1,10 @@
 #!/bin/bash
-# tune_network_SAFE.sh - GLM adaptation of James's recipe (buffer half ONLY).
-# NO mtu/ring/link changes here (ds4 live RoCE traffic shares these NICs).
-# Jumbo MTU 9000 already active on fabric ifaces (verified).
+# tune_network_SAFE.sh - TCP buffer tuning ONLY. No MTU/ring/link changes here:
+# a live serving instance may be sharing these NICs, and this script is safe to
+# run beside one. Run on every node.
 set -e
 cat <<'EOF' | sudo tee /etc/sysctl.d/99-glm-net.conf >/dev/null
-# glm-5.3-flash staging/serve network tuning (adapted from user recipe)
+# glm-5.3-flash staging/serve network tuning
 net.core.rmem_max=134217728
 net.core.wmem_max=134217728
 net.core.rmem_default=67108864
